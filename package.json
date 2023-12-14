@@ -1,8 +1,7 @@
 {
   "name": "@flowda-projects/v1-flowda-api",
   "scripts": {
-    "serve": "../../../node_modules/.bin/dotenv -e .env.dev -- ../../../node_modules/.bin/nx serve flowda-api",
-    "post-build": "./scripts/post-build.mjs"
+    "serve": "../../../node_modules/.bin/dotenv -e .env.dev -- ../../../node_modules/.bin/nx serve flowda-api"
   },
   "dependencies": {
     "@anatine/zod-mock": "^3.1.1",
@@ -15,7 +14,6 @@
     "@nestjs/platform-express": "^9.0.0",
     "@nestjs/swagger": "^6.1.3",
     "@nestjs/testing": "^9.0.0",
-    "@prisma/client": "^4.13.0",
     "axios": "1.1.0",
     "bcrypt": "^5.1.0",
     "cache-manager": "^5.2.4",
@@ -39,7 +37,6 @@
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "pluralize": "^8.0.0",
-    "prisma": "^4.13.0",
     "qs": "^6.11.2",
     "radash": "^11.0.0",
     "reflect-metadata": "^0.1.13",
