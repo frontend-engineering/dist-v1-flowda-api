@@ -9257,7 +9257,7 @@ function bootstrap() {
             .build();
         app.use((0, express_1.json)({ limit: '50mb' }));
         app.use((0, express_1.urlencoded)({ extended: true, limit: '50mb' }));
-        const globalPrefix = 'api';
+        const globalPrefix = 'v1-flowda-api';
         app.setGlobalPrefix(globalPrefix);
         const document = swagger_1.SwaggerModule.createDocument(app, config);
         swagger_1.SwaggerModule.setup('api-doc', app, document);
