@@ -9261,7 +9261,7 @@ function bootstrap() {
         app.setGlobalPrefix(globalPrefix);
         const document = swagger_1.SwaggerModule.createDocument(app, config);
         swagger_1.SwaggerModule.setup('api-doc', app, document);
-        const port = process.env.PORT || 8080;
+        const port = process.env.PORT || 3342;
         app.enableCors();
         yield app.listen(port, '0.0.0.0');
         common_1.Logger.log(`🚀 Application is running on: http://localhost:${port}/${globalPrefix}`);
