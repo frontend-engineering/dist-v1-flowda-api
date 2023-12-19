@@ -2390,13 +2390,14 @@ exports.SchemaTransformer = SchemaTransformer;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DynamicTableSchemaTransformerSymbol = exports.SchemaServiceSymbol = exports.DataServiceSymbol = exports.PrismaUtilsSymbol = exports.SchemaTransformerSymbol = exports.PrismaSchemaServiceSymbol = void 0;
+exports.FlowdaTrpcClientSymbol = exports.DynamicTableSchemaTransformerSymbol = exports.SchemaServiceSymbol = exports.DataServiceSymbol = exports.PrismaUtilsSymbol = exports.SchemaTransformerSymbol = exports.PrismaSchemaServiceSymbol = void 0;
 exports.PrismaSchemaServiceSymbol = Symbol.for('PrismaSchemaService');
 exports.SchemaTransformerSymbol = Symbol.for('SchemaTransformer');
 exports.PrismaUtilsSymbol = Symbol.for('PrismaUtils');
 exports.DataServiceSymbol = Symbol.for('DataService');
 exports.SchemaServiceSymbol = Symbol.for('SchemaService');
 exports.DynamicTableSchemaTransformerSymbol = Symbol.for('DynamicTableSchemaTransformer');
+exports.FlowdaTrpcClientSymbol = Symbol.for('FlowdaTrpcClient');
 
 
 /***/ }),
@@ -4260,6 +4261,7 @@ exports.flowdaInfraModule = new inversify_1.ContainerModule((bind) => {
     bind(legacy_libs_1.WechatpayNodeV3Symbol)
         .toDynamicValue((context) => {
         const config = context.container.get(config_service_2.IConfigService);
+        console.log(`--wechat debug--${config.getEnv('apiclient_cert.pem')} - ${config.getEnv('apiclient_key.pem')}`);
         return new legacy_libs_1.WechatpayNodeV3({
             appid: config.getEnv('appid'),
             mchid: config.getEnv('mchid'),
@@ -7146,8 +7148,10 @@ let OrderService = OrderService_1 = class OrderService {
     }
     create(user, dto, { tx }) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            this.logger.log(`creating order: `, user.id, dto.productId);
             const { product, productSnapshot, order } = yield this.doCreate(user.id, dto.productId, { tx });
             const profile = yield tx.profile.findUnique({ where: { customerId: user.id } });
+            this.logger.log(`profile `, profile);
             // 检查限购情况
             if (product.restricted) {
                 const purchased = yield this.orderQuery.queryOrderHistory(user.id, product.id);
@@ -8099,6 +8103,7 @@ let WxPayService = WxPayService_1 = class WxPayService {
                     profit_sharing: false, ///是否指定分账
                 },
             };
+            this.logger.log(`wechat start to transactions_native ${JSON.stringify(params)}`);
             const wxRet = yield this.wechatPayNodeV3Factory().transactions_native(params);
             this.logger.log(`wechat transactions_native resp ${JSON.stringify(wxRet)}`);
             if (wxRet.status !== 200) {
@@ -9257,11 +9262,11 @@ function bootstrap() {
             .build();
         app.use((0, express_1.json)({ limit: '50mb' }));
         app.use((0, express_1.urlencoded)({ extended: true, limit: '50mb' }));
-        const globalPrefix = 'api';
+        const globalPrefix = 'v1-flowda-api';
         app.setGlobalPrefix(globalPrefix);
         const document = swagger_1.SwaggerModule.createDocument(app, config);
         swagger_1.SwaggerModule.setup('api-doc', app, document);
-        const port = process.env.PORT || 8080;
+        const port = process.env.PORT || 3342;
         app.enableCors();
         yield app.listen(port, '0.0.0.0');
         common_1.Logger.log(`🚀 Application is running on: http://localhost:${port}/${globalPrefix}`);
