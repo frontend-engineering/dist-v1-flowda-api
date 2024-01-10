@@ -481,6 +481,8 @@ const v1_biz_legacy_services_1 = __webpack_require__("../../../libs/v1/biz-legac
 const flowda_shared_node_1 = __webpack_require__("../../../libs/flowda-shared-node/src/index.ts");
 const flowda_shared_1 = __webpack_require__("../../../libs/flowda-shared/src/index.ts");
 function loadModule(container) {
+    // todo: 不用兼容，调用就报错
+    container.bind(flowda_shared_1.FlowdaTrpcClientSymbol).toConstantValue({});
     container.load(flowda_shared_1.flowdaSharedModule);
     container.load(flowda_shared_node_1.flowdaSharedNodeModule);
     container.load(v1_flowda_services_1.prismaClientFlowdaModule);
@@ -1273,7 +1275,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.COSSymbol = exports.CustomError = exports.K3CloudIdentifyInfoSymbol = exports.CustomZodSchemaSymbol = exports.PrismaZodSchemaSymbol = exports.URLSymbol = exports.APISymbol = exports.ServiceSymbol = exports.PrismaClientSymbol = void 0;
+exports.COSSymbol = exports.CustomError = exports.K3CloudIdentifyInfoSymbol = exports.CustomZodSchemaSymbol = exports.PrismaZodSchemaSymbol = exports.ENVSymbol = exports.URLSymbol = exports.APISymbol = exports.ServiceSymbol = exports.PrismaClientSymbol = void 0;
 exports.PrismaClientSymbol = Symbol('PrismaClient');
 /**
  * getServices 方法会将 inversify module 转换成 nestjs module，这样 nestjs controller 就可以使用了
@@ -1282,6 +1284,7 @@ exports.PrismaClientSymbol = Symbol('PrismaClient');
 exports.ServiceSymbol = Symbol('Service');
 exports.APISymbol = Symbol('API');
 exports.URLSymbol = Symbol.for('URL');
+exports.ENVSymbol = Symbol.for('ENV');
 exports.PrismaZodSchemaSymbol = Symbol.for('PrismaZodSchema');
 exports.CustomZodSchemaSymbol = Symbol.for('CustomZodSchema');
 exports.K3CloudIdentifyInfoSymbol = Symbol.for('K3CloudIdentifyInfo');
@@ -2390,13 +2393,14 @@ exports.SchemaTransformer = SchemaTransformer;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DynamicTableSchemaTransformerSymbol = exports.SchemaServiceSymbol = exports.DataServiceSymbol = exports.PrismaUtilsSymbol = exports.SchemaTransformerSymbol = exports.PrismaSchemaServiceSymbol = void 0;
+exports.FlowdaTrpcClientSymbol = exports.DynamicTableSchemaTransformerSymbol = exports.SchemaServiceSymbol = exports.DataServiceSymbol = exports.PrismaUtilsSymbol = exports.SchemaTransformerSymbol = exports.PrismaSchemaServiceSymbol = void 0;
 exports.PrismaSchemaServiceSymbol = Symbol.for('PrismaSchemaService');
 exports.SchemaTransformerSymbol = Symbol.for('SchemaTransformer');
 exports.PrismaUtilsSymbol = Symbol.for('PrismaUtils');
 exports.DataServiceSymbol = Symbol.for('DataService');
 exports.SchemaServiceSymbol = Symbol.for('SchemaService');
 exports.DynamicTableSchemaTransformerSymbol = Symbol.for('DynamicTableSchemaTransformer');
+exports.FlowdaTrpcClientSymbol = Symbol.for('FlowdaTrpcClient');
 
 
 /***/ }),
@@ -2495,6 +2499,7 @@ exports.matchPath = exports.toSchemaName = exports.toPath = exports.toModelName 
 const plur = __webpack_require__("pluralize");
 const _ = __webpack_require__("lodash");
 plur.addSingularRule(/data/i, 'data');
+plur.addSingularRule(/defs/i, 'def');
 // s* equipment 不可数
 const REG = /(([a-z_]+s*)\/?([A-Za-z0-9-_:]+)?)+/g;
 const NUM_REG = /^-?\d+(\.\d+)?$/;
@@ -4200,6 +4205,7 @@ let ConfigService = ConfigService_1 = class ConfigService {
             CHAT_SALT: (0, envalid_1.str)({ default: 'CHAT_SALT_STR' }),
             WORKER_LIST: (0, envalid_1.str)({ default: '' }),
             WECOM_HOOK_KEY: (0, envalid_1.str)({ default: 'f392b278-930a-4ccf-81ab-31128d668631' }),
+            FLOWDA_URL: (0, envalid_1.str)({ devDefault: (0, envalid_1.testOnly)('http://localhost:3350') }),
         }, {
             reporter: ({ errors, env }) => {
                 for (const [envVar, err] of Object.entries(errors)) {
@@ -5126,7 +5132,7 @@ exports.AppService = AppService;
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
-var _a, _b, _c, _d, _e;
+var _a, _b, _c, _d, _e, _f;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AppAuthService = void 0;
 const tslib_1 = __webpack_require__("tslib");
@@ -5139,14 +5145,16 @@ const client_v1_flowda_1 = __webpack_require__("@prisma/client-v1-flowda");
 const authentication_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/authentication/authentication.service.ts");
 const keymachine_1 = __webpack_require__("keymachine");
 const bcrypt = __webpack_require__("bcrypt");
+const client_1 = __webpack_require__("@trpc/client");
 let AppAuthService = class AppAuthService extends authentication_service_1.AuthenticationService {
-    constructor(identityProvider, jwt, config, mailService, prisma) {
+    constructor(identityProvider, jwt, config, mailService, prisma, flowdaTrpc) {
         super(identityProvider, jwt, config, mailService);
         this.identityProvider = identityProvider;
         this.jwt = jwt;
         this.config = config;
         this.mailService = mailService;
         this.prisma = prisma;
+        this.flowdaTrpc = flowdaTrpc;
     }
     postConstruct() {
         this.setOptions({
@@ -5186,6 +5194,48 @@ let AppAuthService = class AppAuthService extends authentication_service_1.Authe
                 expireAt: tokens.expireAt,
                 app: tokens.user,
             };
+        });
+    }
+    validateV4(appId, appToken) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            const tenant = yield this.flowdaTrpc.user.getTenantByName.query({
+                tenantName: appId,
+            });
+            const { at, exp } = this.jwt.generateAccessToken(String(tenant.id), {
+                secret: this.options.access_token_secret,
+                exp: this.options.access_token_expire,
+            });
+            return {
+                at,
+                rt: null,
+                app: this.v4ConvertTo(tenant),
+                expireAt: exp,
+            };
+        });
+    }
+    /**
+     * 映射 tenant -> 和原来的 app 表
+     * @param tenant
+     * @private
+     */
+    v4ConvertTo(tenant) {
+        return {
+            id: tenant.id,
+            name: tenant.name,
+            displayName: tenant.name,
+            description: tenant.name,
+        };
+    }
+    getUserV4(userId) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            this.logger.debug(`[getUserV4] userId ${userId}`);
+            const tenant = yield this.flowdaTrpc.user.getTenant.query({
+                tid: Number(userId),
+            });
+            if (!tenant) {
+                throw new v1_flowda_types_1.AuthenticationError.AccountNotFound();
+            }
+            return this.v4ConvertTo(tenant);
         });
     }
     appRefreshToken(rt) {
@@ -5236,7 +5286,8 @@ AppAuthService = tslib_1.__decorate([
     tslib_1.__param(2, (0, inversify_1.inject)(infra_1.IConfigService)),
     tslib_1.__param(3, (0, inversify_1.inject)(infra_1.IMailService)),
     tslib_1.__param(4, (0, inversify_1.inject)(flowda_shared_1.PrismaClientSymbol)),
-    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object])
+    tslib_1.__param(5, (0, inversify_1.inject)(flowda_shared_1.FlowdaTrpcClientSymbol)),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object, typeof (_f = typeof client_1.CreateTRPCProxyClient !== "undefined" && client_1.CreateTRPCProxyClient) === "function" ? _f : Object])
 ], AppAuthService);
 exports.AppAuthService = AppAuthService;
 
@@ -5777,7 +5828,7 @@ exports.SuperAdminAuthenticationTx = SuperAdminAuthenticationTx;
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
-var _a, _b, _c, _d, _e, _f, _g;
+var _a, _b, _c, _d, _e, _f, _g, _h;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CustomerAuthService = void 0;
 const tslib_1 = __webpack_require__("tslib");
@@ -5791,8 +5842,9 @@ const client_v1_flowda_1 = __webpack_require__("@prisma/client-v1-flowda");
 const authentication_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/authentication/authentication.service.ts");
 const wxLogin_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/wx-login/wxLogin.service.ts");
 const wxFwhLogin_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/wx-login/wxFwhLogin.service.ts");
+const client_1 = __webpack_require__("@trpc/client");
 let CustomerAuthService = class CustomerAuthService extends authentication_service_1.AuthenticationService {
-    constructor(identityProvider, jwt, config, mailService, prisma, wxLogin, wxFwhLogin) {
+    constructor(identityProvider, jwt, config, mailService, prisma, wxLogin, wxFwhLogin, flowdaTrpc) {
         super(identityProvider, jwt, config, mailService);
         this.identityProvider = identityProvider;
         this.jwt = jwt;
@@ -5801,6 +5853,7 @@ let CustomerAuthService = class CustomerAuthService extends authentication_servi
         this.prisma = prisma;
         this.wxLogin = wxLogin;
         this.wxFwhLogin = wxFwhLogin;
+        this.flowdaTrpc = flowdaTrpc;
     }
     postConstruct() {
         this.setOptions({
@@ -5905,20 +5958,21 @@ let CustomerAuthService = class CustomerAuthService extends authentication_servi
     }
     wxValidateUser(code, appId) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            this.logger.debug('invoke wxValidateUser');
             // appId valite
             if (!appId) {
                 throw new v1_flowda_types_1.AuthenticationError.InvalidAppId();
             }
             const ret = yield this.wxLogin.getAccessToken(code);
             const data = ret.data;
-            const findCustomerRet = yield this.identityProvider.find({ name: data.unionid, appId });
+            const findCustomerRet = yield this.identityProvider.find({ name: data.unionid + appId, appId });
             let customer;
             if (!findCustomerRet) {
                 // 如果不存在则创建
                 // 微信注册，只需要 name
                 customer = yield this.signup({
                     appId,
-                    name: data.unionid,
+                    name: data.unionid + appId,
                 });
                 const wxUser = yield this.wxLogin.getUser(data.openid, data.access_token);
                 const app = yield this.prisma.app.findUniqueOrThrow({ where: { id: appId } });
@@ -5939,6 +5993,63 @@ let CustomerAuthService = class CustomerAuthService extends authentication_servi
                 customer = findCustomerRet;
             }
             return this.validateUserReturnTokens('name', appId, customer.name);
+        });
+    }
+    wxValidateUserV4(code, appId) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            this.logger.debug(`invoke wxValidateUserV4, appId ${appId}`);
+            // appId valite
+            if (!appId) {
+                throw new v1_flowda_types_1.AuthenticationError.InvalidAppId();
+            }
+            const ret = yield this.wxLogin.getAccessToken(code);
+            const data = ret.data;
+            const findCustomerRet = yield this.flowdaTrpc.user.findByUnionIdAndTenantId.query({
+                unionid: data.unionid,
+                tenantId: Number(appId),
+            });
+            let customer;
+            let weixinProfile;
+            if (!findCustomerRet) {
+                // 如果不存在则创建
+                // 微信注册，只需要 name
+                customer = yield this.flowdaTrpc.user.registerByUnionId.mutate({
+                    unionid: data.unionid,
+                    tenantId: Number(appId),
+                });
+                const wxUser = yield this.wxLogin.getUser(data.openid, data.access_token);
+                // const app = await this.prisma.app.findUniqueOrThrow({ where: { id: appId } })
+                // 创建微信信息
+                weixinProfile = yield this.prisma.weixinProfile.create({
+                    data: {
+                        // tenantId: '不填写数据库默认值',
+                        unionid: data.unionid,
+                        loginOpenid: data.openid,
+                        headimgurl: wxUser.headimgurl,
+                        nickname: wxUser.nickname,
+                        sex: wxUser.sex,
+                        customerId: null,
+                    },
+                });
+            }
+            else {
+                customer = findCustomerRet;
+                weixinProfile = yield this.prisma.weixinProfile.findFirst({
+                    where: {
+                        unionid: data.unionid,
+                    },
+                });
+            }
+            return {
+                at: '',
+                rt: '',
+                user: Object.assign(customer, {
+                    id: String(customer.id),
+                    name: customer.username,
+                    weixinProfile,
+                }),
+                expireAt: 0,
+            };
         });
     }
     // 匿名登录 <- name: 匿名token
@@ -6090,7 +6201,8 @@ CustomerAuthService = tslib_1.__decorate([
     tslib_1.__param(4, (0, inversify_1.inject)(flowda_shared_1.PrismaClientSymbol)),
     tslib_1.__param(5, (0, inversify_1.inject)(wxLogin_service_1.WxLoginService)),
     tslib_1.__param(6, (0, inversify_1.inject)(wxFwhLogin_service_1.WxFwhLoginService)),
-    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object, typeof (_f = typeof wxLogin_service_1.WxLoginService !== "undefined" && wxLogin_service_1.WxLoginService) === "function" ? _f : Object, typeof (_g = typeof wxFwhLogin_service_1.WxFwhLoginService !== "undefined" && wxFwhLogin_service_1.WxFwhLoginService) === "function" ? _g : Object])
+    tslib_1.__param(7, (0, inversify_1.inject)(flowda_shared_1.FlowdaTrpcClientSymbol)),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object, typeof (_f = typeof wxLogin_service_1.WxLoginService !== "undefined" && wxLogin_service_1.WxLoginService) === "function" ? _f : Object, typeof (_g = typeof wxFwhLogin_service_1.WxFwhLoginService !== "undefined" && wxFwhLogin_service_1.WxFwhLoginService) === "function" ? _g : Object, typeof (_h = typeof client_1.CreateTRPCProxyClient !== "undefined" && client_1.CreateTRPCProxyClient) === "function" ? _h : Object])
 ], CustomerAuthService);
 exports.CustomerAuthService = CustomerAuthService;
 
@@ -7146,8 +7258,10 @@ let OrderService = OrderService_1 = class OrderService {
     }
     create(user, dto, { tx }) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            this.logger.log(`creating order: `, user.id, dto.productId);
             const { product, productSnapshot, order } = yield this.doCreate(user.id, dto.productId, { tx });
             const profile = yield tx.profile.findUnique({ where: { customerId: user.id } });
+            this.logger.log(`profile `, profile);
             // 检查限购情况
             if (product.restricted) {
                 const purchased = yield this.orderQuery.queryOrderHistory(user.id, product.id);
@@ -8099,6 +8213,7 @@ let WxPayService = WxPayService_1 = class WxPayService {
                     profit_sharing: false, ///是否指定分账
                 },
             };
+            this.logger.log(`wechat start to transactions_native ${JSON.stringify(params)}`);
             const wxRet = yield this.wechatPayNodeV3Factory().transactions_native(params);
             this.logger.log(`wechat transactions_native resp ${JSON.stringify(wxRet)}`);
             if (wxRet.status !== 200) {
@@ -8187,7 +8302,7 @@ let AppExceptionFilter = AppExceptionFilter_1 = class AppExceptionFilter {
             message = rt.message;
             errorExtra = rt.extra;
             status = common_1.HttpStatus.OK;
-            // errorStack = exception.stack
+            errorStack = exception.stack;
         }
         else if (exception instanceof Error) {
             // 如果是一般 Error，提取 message，errorCode 继续 undef
@@ -8203,14 +8318,14 @@ let AppExceptionFilter = AppExceptionFilter_1 = class AppExceptionFilter {
             if (typeof res === 'object' && Array.isArray(res.message)) {
                 message = res.message.join(',');
             }
-            // errorStack = exception.stack
+            errorStack = exception.stack;
         }
         // 如果是权限相关的（jwt access token 过期）
         if (exception instanceof common_1.UnauthorizedException) {
             status = exception.getStatus();
             errorCode = status;
             message = exception.message;
-            // errorStack = exception.stack
+            errorStack = exception.stack;
         }
         if (exception instanceof nestjs_zod_1.ZodValidationException) {
             status = exception.getStatus();
@@ -8229,7 +8344,7 @@ let AppExceptionFilter = AppExceptionFilter_1 = class AppExceptionFilter {
             timestamp: new Date().toISOString(),
             message: message,
             extraInfo: errorExtra,
-            // errorStack: errorStack,
+            errorStack: errorStack,
         });
         response.status(status).json({
             message: message,
@@ -8608,7 +8723,7 @@ exports.zt = __webpack_require__("../../../libs/v1/prisma-flowda/src/zod/index.t
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.WeixinProfileSchema = exports.CustomerWithRelationsSchema = exports.CustomerSchema = exports.PayWithRelationsSchema = exports.PaySchema = exports.ProductWithRelationsSchema = exports.ProductSchema = exports.ArticleWithRelationsSchema = exports.ArticleSchema = exports.JYFreeCountWithRelationsSchema = exports.JYFreeCountSchema = exports.JYProfileWithRelationsSchema = exports.JYProfileSchema = exports.QuestionSchema = exports.TenantPreSignupSchema = exports.TenantWithRelationsSchema = exports.TenantSchema = exports.AppWithRelationsSchema = exports.AppSchema = exports.ProductTypeSchema = exports.PayStatusSchema = exports.OrderStatusSchema = exports.WeixinProfileScalarFieldEnumSchema = exports.TransactionIsolationLevelSchema = exports.TenantScalarFieldEnumSchema = exports.TenantPreSignupScalarFieldEnumSchema = exports.SortOrderSchema = exports.QuestionScalarFieldEnumSchema = exports.ProfileScalarFieldEnumSchema = exports.ProductSnapshotScalarFieldEnumSchema = exports.ProductScalarFieldEnumSchema = exports.PayScalarFieldEnumSchema = exports.OrderScalarFieldEnumSchema = exports.NullableJsonNullValueInputSchema = exports.LegacyProfileScalarFieldEnumSchema = exports.JsonNullValueFilterSchema = exports.JYProfileScalarFieldEnumSchema = exports.JYFreeCountScalarFieldEnumSchema = exports.CustomerScalarFieldEnumSchema = exports.CustomerPreSignupScalarFieldEnumSchema = exports.ArticleScalarFieldEnumSchema = exports.AppScalarFieldEnumSchema = exports.isValidDecimalInput = exports.DECIMAL_STRING_REGEX = exports.DecimalJSLikeListSchema = exports.DecimalJSLikeSchema = exports.InputJsonValue = exports.NullableJsonValue = exports.JsonValue = exports.transformJsonNull = void 0;
+exports.WeixinProfileSchema = exports.CustomerWithRelationsSchema = exports.CustomerSchema = exports.PayWithRelationsSchema = exports.PaySchema = exports.ProductWithRelationsSchema = exports.ProductSchema = exports.ArticleWithRelationsSchema = exports.ArticleSchema = exports.JYFreeCountWithRelationsSchema = exports.JYFreeCountSchema = exports.JYProfileWithRelationsSchema = exports.JYProfileSchema = exports.QuestionSchema = exports.TenantPreSignupSchema = exports.TenantSchema = exports.AppWithRelationsSchema = exports.AppSchema = exports.ProductTypeSchema = exports.PayStatusSchema = exports.OrderStatusSchema = exports.JsonNullValueFilterSchema = exports.NullsOrderSchema = exports.NullableJsonNullValueInputSchema = exports.SortOrderSchema = exports.OrderScalarFieldEnumSchema = exports.ProductSnapshotScalarFieldEnumSchema = exports.LegacyProfileScalarFieldEnumSchema = exports.CustomerPreSignupScalarFieldEnumSchema = exports.ProfileScalarFieldEnumSchema = exports.WeixinProfileScalarFieldEnumSchema = exports.CustomerScalarFieldEnumSchema = exports.PayScalarFieldEnumSchema = exports.ProductScalarFieldEnumSchema = exports.ArticleScalarFieldEnumSchema = exports.JYFreeCountScalarFieldEnumSchema = exports.JYProfileScalarFieldEnumSchema = exports.QuestionScalarFieldEnumSchema = exports.TenantPreSignupScalarFieldEnumSchema = exports.TenantScalarFieldEnumSchema = exports.AppScalarFieldEnumSchema = exports.TransactionIsolationLevelSchema = exports.isValidDecimalInput = exports.DECIMAL_STRING_REGEX = exports.DecimalJSLikeListSchema = exports.DecimalJSLikeSchema = exports.InputJsonValue = exports.NullableJsonValue = exports.JsonValue = exports.transformJsonNull = void 0;
 exports.OrderWithRelationsSchema = exports.OrderSchema = exports.ProductSnapshotWithRelationsSchema = exports.ProductSnapshotSchema = exports.LegacyProfileWithRelationsSchema = exports.LegacyProfileSchema = exports.customerPreSignupSchema = exports.ProfileWithRelationsSchema = exports.ProfileSchema = exports.WeixinProfileWithRelationsSchema = void 0;
 const zod_1 = __webpack_require__("zod");
 const client_v1_flowda_1 = __webpack_require__("@prisma/client-v1-flowda");
@@ -8654,26 +8769,27 @@ exports.isValidDecimalInput = isValidDecimalInput;
 /////////////////////////////////////////
 // ENUMS
 /////////////////////////////////////////
-exports.AppScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'hashedAppToken', 'hashedPassword', 'hashedRefreshToken', 'recoveryCode', 'recoveryToken', 'displayName', 'description', 'isDeleted', 'tenantId']);
-exports.ArticleScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'link', 'source', 'title', 'image', 'excerpt', 'profileId']);
-exports.CustomerPreSignupScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'email', 'verifyCode', 'appId', 'tenantId']);
-exports.CustomerScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'appId', 'email', 'hashedPassword', 'hashedRefreshToken', 'recoveryCode', 'recoveryToken', 'isDeleted', 'tenantId']);
-exports.JYFreeCountScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'cycle', 'count', 'profileId']);
-exports.JYProfileScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'userId']);
-exports.JsonNullValueFilterSchema = zod_1.z.enum(['DbNull', 'JsonNull', 'AnyNull',]);
-exports.LegacyProfileScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'customerId', 'license', 'refreshToken']);
-exports.NullableJsonNullValueInputSchema = zod_1.z.enum(['DbNull', 'JsonNull',]).transform((v) => (0, exports.transformJsonNull)(v));
-exports.OrderScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'serial', 'status', 'customerId', 'appId', 'isDeleted', 'tenantId']);
-exports.PayScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'status', 'orderId', 'transactionId', 'tenantId']);
-exports.ProductScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'price', 'productType', 'plan', 'amount', 'extendedDescriptionData', 'fileSize', 'storeDuration', 'hasAds', 'tecSupport', 'validityPeriod', 'appId', 'isDeleted', 'tenantId', 'restricted']);
-exports.ProductSnapshotScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'snapshotPrice', 'orderId', 'productId', 'tenantId']);
-exports.ProfileScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'customerId', 'productType', 'plan', 'amount', 'expireAt', 'tenantId']);
-exports.QuestionScalarFieldEnumSchema = zod_1.z.enum(['id', 'uid', 'question', 'answer', 'success', 'createdAt', 'updatedAt']);
-exports.SortOrderSchema = zod_1.z.enum(['asc', 'desc']);
-exports.TenantPreSignupScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'email', 'verifyCode']);
-exports.TenantScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'email', 'hashedPassword', 'hashedRefreshToken', 'recoveryCode', 'recoveryToken', 'role']);
 exports.TransactionIsolationLevelSchema = zod_1.z.enum(['ReadUncommitted', 'ReadCommitted', 'RepeatableRead', 'Serializable']);
+exports.AppScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'hashedAppToken', 'hashedPassword', 'hashedRefreshToken', 'recoveryCode', 'recoveryToken', 'displayName', 'description', 'isDeleted', 'tenantId']);
+exports.TenantScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'email', 'hashedPassword', 'hashedRefreshToken', 'recoveryCode', 'recoveryToken', 'role']);
+exports.TenantPreSignupScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'email', 'verifyCode']);
+exports.QuestionScalarFieldEnumSchema = zod_1.z.enum(['id', 'uid', 'question', 'answer', 'success', 'createdAt', 'updatedAt']);
+exports.JYProfileScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'userId']);
+exports.JYFreeCountScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'cycle', 'count', 'profileId']);
+exports.ArticleScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'link', 'source', 'title', 'image', 'excerpt', 'profileId']);
+exports.ProductScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'price', 'productType', 'plan', 'amount', 'extendedDescriptionData', 'fileSize', 'storeDuration', 'hasAds', 'tecSupport', 'validityPeriod', 'appId', 'isDeleted', 'tenantId', 'restricted']);
+exports.PayScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'status', 'orderId', 'transactionId', 'tenantId']);
+exports.CustomerScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'name', 'appId', 'email', 'hashedPassword', 'hashedRefreshToken', 'recoveryCode', 'recoveryToken', 'isDeleted', 'tenantId']);
 exports.WeixinProfileScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'unionid', 'loginOpenid', 'headimgurl', 'nickname', 'sex', 'customerId', 'tenantId']);
+exports.ProfileScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'customerId', 'productType', 'plan', 'amount', 'expireAt', 'tenantId']);
+exports.CustomerPreSignupScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'email', 'verifyCode', 'appId', 'tenantId']);
+exports.LegacyProfileScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'customerId', 'license', 'refreshToken']);
+exports.ProductSnapshotScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'snapshotPrice', 'orderId', 'productId', 'tenantId']);
+exports.OrderScalarFieldEnumSchema = zod_1.z.enum(['id', 'createdAt', 'updatedAt', 'serial', 'status', 'customerId', 'appId', 'isDeleted', 'tenantId']);
+exports.SortOrderSchema = zod_1.z.enum(['asc', 'desc']);
+exports.NullableJsonNullValueInputSchema = zod_1.z.enum(['DbNull', 'JsonNull',]).transform((v) => (0, exports.transformJsonNull)(v));
+exports.NullsOrderSchema = zod_1.z.enum(['first', 'last']);
+exports.JsonNullValueFilterSchema = zod_1.z.enum(['DbNull', 'JsonNull', 'AnyNull',]);
 exports.OrderStatusSchema = zod_1.z.enum(['INITIALIZED', 'PAY_ASSOCIATED', 'FREE_DEAL', 'CANCELED']);
 exports.PayStatusSchema = zod_1.z.enum(['UNPAIED', 'PAIED', 'REFUND']);
 exports.ProductTypeSchema = zod_1.z.enum(['AMOUNT', 'PLAN']);
@@ -8702,7 +8818,6 @@ exports.AppWithRelationsSchema = exports.AppSchema.merge(zod_1.z.object({
     products: zod_1.z.lazy(() => exports.ProductWithRelationsSchema).array().openapi({ "model_name": "Product", "foreign_key": "appId", "primary_key": "id", "title": "Products" }),
     customers: zod_1.z.lazy(() => exports.CustomerWithRelationsSchema).array().openapi({ "model_name": "Customer", "foreign_key": "appId", "primary_key": "id", "title": "Customers" }),
     orders: zod_1.z.lazy(() => exports.OrderWithRelationsSchema).array().openapi({ "model_name": "Order", "foreign_key": "appId", "primary_key": "id", "title": "Orders" }),
-    tenant: zod_1.z.lazy(() => exports.TenantWithRelationsSchema).nullable(),
 }));
 /////////////////////////////////////////
 // TENANT SCHEMA
@@ -8719,9 +8834,6 @@ exports.TenantSchema = zod_1.z.object({
     recoveryToken: zod_1.z.string().nullable(),
     role: zod_1.z.string().nullable(),
 });
-exports.TenantWithRelationsSchema = exports.TenantSchema.merge(zod_1.z.object({
-    App: zod_1.z.lazy(() => exports.AppWithRelationsSchema).array(),
-}));
 /////////////////////////////////////////
 // TENANT PRE SIGNUP SCHEMA
 /////////////////////////////////////////
@@ -8869,11 +8981,11 @@ exports.WeixinProfileSchema = zod_1.z.object({
     headimgurl: zod_1.z.string(),
     nickname: zod_1.z.string(),
     sex: zod_1.z.number().int(),
-    customerId: zod_1.z.string(),
+    customerId: zod_1.z.string().nullable(),
     tenantId: zod_1.z.string(),
 }).openapi({ "primary_key": "id", "display_name": "微信用户信息", "display_column": "nickname" });
 exports.WeixinProfileWithRelationsSchema = exports.WeixinProfileSchema.merge(zod_1.z.object({
-    customer: zod_1.z.lazy(() => exports.CustomerWithRelationsSchema),
+    customer: zod_1.z.lazy(() => exports.CustomerWithRelationsSchema).nullable(),
 }));
 /////////////////////////////////////////
 // PROFILE SCHEMA
@@ -8997,6 +9109,13 @@ module.exports = require("@nestjs/swagger");
 /***/ ((module) => {
 
 module.exports = require("@prisma/client-v1-flowda");
+
+/***/ }),
+
+/***/ "@trpc/client":
+/***/ ((module) => {
+
+module.exports = require("@trpc/client");
 
 /***/ }),
 
@@ -9257,11 +9376,11 @@ function bootstrap() {
             .build();
         app.use((0, express_1.json)({ limit: '50mb' }));
         app.use((0, express_1.urlencoded)({ extended: true, limit: '50mb' }));
-        const globalPrefix = 'api';
+        const globalPrefix = 'v1-flowda-api';
         app.setGlobalPrefix(globalPrefix);
         const document = swagger_1.SwaggerModule.createDocument(app, config);
         swagger_1.SwaggerModule.setup('api-doc', app, document);
-        const port = process.env.PORT || 8080;
+        const port = process.env.PORT || 3342;
         app.enableCors();
         yield app.listen(port, '0.0.0.0');
         common_1.Logger.log(`🚀 Application is running on: http://localhost:${port}/${globalPrefix}`);
