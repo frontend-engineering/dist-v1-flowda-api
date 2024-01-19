@@ -5134,7 +5134,7 @@ exports.AppService = AppService = AppService_1 = tslib_1.__decorate([
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
-var _a, _b, _c, _d, _e, _f;
+var _a, _b, _c, _d, _e;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AppAuthService = void 0;
 const tslib_1 = __webpack_require__("tslib");
@@ -5147,7 +5147,6 @@ const client_v1_flowda_1 = __webpack_require__("@prisma/client-v1-flowda");
 const authentication_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/authentication/authentication.service.ts");
 const keymachine_1 = tslib_1.__importDefault(__webpack_require__("keymachine"));
 const bcrypt = tslib_1.__importStar(__webpack_require__("bcrypt"));
-const client_1 = __webpack_require__("@trpc/client");
 let AppAuthService = class AppAuthService extends authentication_service_1.AuthenticationService {
     constructor(identityProvider, jwt, config, mailService, prisma, flowdaTrpc) {
         super(identityProvider, jwt, config, mailService);
@@ -5290,7 +5289,7 @@ exports.AppAuthService = AppAuthService = tslib_1.__decorate([
     tslib_1.__param(3, (0, inversify_1.inject)(infra_1.IMailService)),
     tslib_1.__param(4, (0, inversify_1.inject)(flowda_shared_1.PrismaClientSymbol)),
     tslib_1.__param(5, (0, inversify_1.inject)(flowda_shared_1.FlowdaTrpcClientSymbol)),
-    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object, typeof (_f = typeof client_1.CreateTRPCProxyClient !== "undefined" && client_1.CreateTRPCProxyClient) === "function" ? _f : Object])
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object, Object])
 ], AppAuthService);
 
 
@@ -5830,7 +5829,7 @@ exports.SuperAdminAuthenticationTx = SuperAdminAuthenticationTx = SuperAdminAuth
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
-var _a, _b, _c, _d, _e, _f, _g, _h;
+var _a, _b, _c, _d, _e, _f, _g;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CustomerAuthService = void 0;
 const tslib_1 = __webpack_require__("tslib");
@@ -5844,7 +5843,6 @@ const client_v1_flowda_1 = __webpack_require__("@prisma/client-v1-flowda");
 const authentication_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/authentication/authentication.service.ts");
 const wxLogin_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/wx-login/wxLogin.service.ts");
 const wxFwhLogin_service_1 = __webpack_require__("../../../libs/v1/flowda-services/src/services/wx-login/wxFwhLogin.service.ts");
-const client_1 = __webpack_require__("@trpc/client");
 let CustomerAuthService = class CustomerAuthService extends authentication_service_1.AuthenticationService {
     constructor(identityProvider, jwt, config, mailService, prisma, wxLogin, wxFwhLogin, flowdaTrpc) {
         super(identityProvider, jwt, config, mailService);
@@ -6205,7 +6203,7 @@ exports.CustomerAuthService = CustomerAuthService = tslib_1.__decorate([
     tslib_1.__param(5, (0, inversify_1.inject)(wxLogin_service_1.WxLoginService)),
     tslib_1.__param(6, (0, inversify_1.inject)(wxFwhLogin_service_1.WxFwhLoginService)),
     tslib_1.__param(7, (0, inversify_1.inject)(flowda_shared_1.FlowdaTrpcClientSymbol)),
-    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object, typeof (_f = typeof wxLogin_service_1.WxLoginService !== "undefined" && wxLogin_service_1.WxLoginService) === "function" ? _f : Object, typeof (_g = typeof wxFwhLogin_service_1.WxFwhLoginService !== "undefined" && wxFwhLogin_service_1.WxFwhLoginService) === "function" ? _g : Object, typeof (_h = typeof client_1.CreateTRPCProxyClient !== "undefined" && client_1.CreateTRPCProxyClient) === "function" ? _h : Object])
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof v1_flowda_types_1.IIdentityProviderService !== "undefined" && v1_flowda_types_1.IIdentityProviderService) === "function" ? _a : Object, typeof (_b = typeof jwt_service_1.JwtService !== "undefined" && jwt_service_1.JwtService) === "function" ? _b : Object, typeof (_c = typeof infra_1.IConfigService !== "undefined" && infra_1.IConfigService) === "function" ? _c : Object, typeof (_d = typeof infra_1.IMailService !== "undefined" && infra_1.IMailService) === "function" ? _d : Object, typeof (_e = typeof client_v1_flowda_1.PrismaClient !== "undefined" && client_v1_flowda_1.PrismaClient) === "function" ? _e : Object, typeof (_f = typeof wxLogin_service_1.WxLoginService !== "undefined" && wxLogin_service_1.WxLoginService) === "function" ? _f : Object, typeof (_g = typeof wxFwhLogin_service_1.WxFwhLoginService !== "undefined" && wxFwhLogin_service_1.WxFwhLoginService) === "function" ? _g : Object, Object])
 ], CustomerAuthService);
 
 
@@ -9114,13 +9112,6 @@ module.exports = require("@nestjs/swagger");
 /***/ ((module) => {
 
 module.exports = require("@prisma/client-v1-flowda");
-
-/***/ }),
-
-/***/ "@trpc/client":
-/***/ ((module) => {
-
-module.exports = require("@trpc/client");
 
 /***/ }),
 
