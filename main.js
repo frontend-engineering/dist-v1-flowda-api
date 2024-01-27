@@ -5956,6 +5956,38 @@ let CustomerAuthService = class CustomerAuthService extends authentication_servi
             };
         });
     }
+    validateUserReturnTokensV4(nameField, appId, name, password) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            yield this.flowdaTrpc.user.validateByEmail.query({
+                tenantId: Number(appId),
+                email: name,
+                password: password,
+            });
+            const userRet = yield this.flowdaTrpc.user.findUnique.query({
+                email: name,
+            });
+            if (!userRet) {
+                throw new Error('Cannot find user by email ' + name);
+            }
+            const weixinProfile = yield this.prisma.weixinProfile.findFirst({
+                where: {
+                    unionid: userRet.unionid,
+                },
+            });
+            return {
+                at: '',
+                rt: '',
+                user: {
+                    id: String(userRet.id),
+                    name: userRet.username,
+                    email: userRet.email,
+                    image: userRet.image,
+                    weixinProfile,
+                },
+                expireAt: 0,
+            };
+        });
+    }
     wxValidateUser(code, appId) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             this.logger.debug('invoke wxValidateUser');
