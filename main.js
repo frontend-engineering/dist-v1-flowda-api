@@ -6216,6 +6216,26 @@ let CustomerAuthService = class CustomerAuthService extends authentication_servi
             return Object.assign(Object.assign({}, user), { refreshToken: rt });
         });
     }
+    getUserV4(userId) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            const userRet = yield this.flowdaTrpc.user.findUnique.query({ id: Number(userId) });
+            if (!userRet) {
+                throw new v1_flowda_types_1.AuthenticationError.AccountNotFound();
+            }
+            const weixinProfile = yield this.prisma.weixinProfile.findFirst({
+                where: {
+                    unionid: userRet.unionid,
+                },
+            });
+            return {
+                id: String(userRet.id),
+                name: userRet.username,
+                email: userRet.email,
+                image: userRet.image,
+                weixinProfile,
+            };
+        });
+    }
 };
 exports.CustomerAuthService = CustomerAuthService;
 tslib_1.__decorate([
